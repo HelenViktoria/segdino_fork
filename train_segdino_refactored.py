@@ -77,13 +77,6 @@ def main():
     print(f"[Info] Using device: {device}")
     model = model.to(device)
     
-    if args.model_ckpt is not None:
-        print(f"[Load segmentation ckpt] {args.model_ckpt}")
-        load_ckpt(model, args.model_ckpt, map_location=device)
-    else:
-        print("[Info] No segmentation ckpt provided, training from scratch.")
-
-    # TODO: also load optimizer state if resuming from checkpoint
 
     ### Prepare optimizer + loss function
     optimizer = torch.optim.AdamW(
@@ -91,6 +84,15 @@ def main():
         lr=args.lr, weight_decay=args.weight_decay
     )
     loss_fct = torch.nn.BCEWithLogitsLoss() if args.num_classes == 1 else torch.nn.CrossEntropyLoss()
+
+
+    ### Load segmentation checkpoint if provided
+    if args.model_ckpt is not None:
+        print(f"[Load segmentation ckpt] {args.model_ckpt}")
+        prev_val_dice, prev_val_iou = load_ckpt(model, optimizer, args.model_ckpt, map_location=device)
+        print(f"[Info] Resuming from val_dice={prev_val_dice:.4f}, val_iou={prev_val_iou:.4f}")
+    else:
+        print("[Info] No segmentation ckpt provided, training from scratch.")
     
 
     ### Prepare datasets and dataloaders
@@ -132,9 +134,9 @@ def main():
 
 
     ### Training and validation loop
-    best_val_dice = -1.0
+    best_val_dice = prev_val_dice if args.model_ckpt is not None else -1.0
     best_val_dice_epoch = -1
-    best_val_iou  = -1.0
+    best_val_iou  = prev_val_iou if args.model_ckpt is not None else -1.0
     best_val_iou_epoch  = -1
 
     for epoch in range(1, args.epochs + 1):

@@ -70,7 +70,7 @@ def main():
     model = model.to(device)
 
     print(f"[Load segmentation ckpt] {args.ckpt}")
-    load_ckpt(model, args.ckpt, map_location=device)
+    load_ckpt(model, None, args.ckpt, map_location=device)
 
 
     # Dataset and DataLoader

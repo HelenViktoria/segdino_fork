@@ -4,6 +4,7 @@ import sys
 from datetime import datetime
 
 import torch
+import numpy as np
 
 from dpt import DPT
 from dino import load_dino_backbone
@@ -15,7 +16,7 @@ sys.path.insert(0, parent_dir)
 
 from spider_utils.dataset import FolderDataset
 from spider_utils.transforms import ResizeAndNormalize
-from spider_utils.train import train_one_epoch, validate, set_seed
+from spider_utils.train import train_one_epoch, validate, set_seed, plot_train_metrics
 from spider_utils.model_utils import load_ckpt, save_ckpt
 
 
@@ -48,7 +49,6 @@ def main():
                         help="DINO backbone size: b=ViT-B/16, s=ViT-S/16")
     parser.add_argument("--model_ckpt", type=str, default=None)
     parser.add_argument("--last_layer_idx", type=int, default=-1)
-    parser.add_argument("--vis_max_save", type=int, default=8)
     parser.add_argument("--img_dir_name", type=str, default="image")
     parser.add_argument("--label_dir_name", type=str, default="mask")
     args = parser.parse_args()
@@ -139,6 +139,10 @@ def main():
     best_val_iou  = prev_val_iou if args.model_ckpt is not None else -1.0
     best_val_iou_epoch  = -1
 
+    dice_array = np.zeros(args.epochs)
+    iou_array = np.zeros(args.epochs)
+
+
     for epoch in range(1, args.epochs + 1):
         _, _, _ = train_one_epoch(
             model,
@@ -161,6 +165,10 @@ def main():
             dice_thr=0.5
         )
 
+        # Store metrics
+        dice_array[epoch-1] = val_dice
+        iou_array[epoch-1] = val_iou
+
         # Save latest checkpoint
         save_ckpt(model, optimizer, epoch, val_dice, val_iou, latest_path)
         print(f"[Save] Latest ckpt: {latest_path}")
@@ -176,10 +184,27 @@ def main():
             best_val_iou = val_iou
             best_val_iou_epoch = epoch
 
+
+    ### Save + plot metric arrays
+    metric_save_dir = os.path.join(save_root, "metrics")
+    os.makedirs(metric_save_dir, exist_ok=True)
+    
+    dice_path = os.path.join(metric_save_dir, "dice_array.npy")
+    np.save(dice_path, dice_array)
+    print(f"[Save] Saved dice array -> {dice_path}")
+    
+    iou_path = os.path.join(metric_save_dir, "iou_array.npy")
+    np.save(iou_path, iou_array)
+    print(f"[Save] Saved iou  array -> {iou_path}")
+
+    plot_train_metrics(dice_array, iou_array, metric_save_dir)
+    print(f"[Save] Saved metrics plot -> {metric_save_dir}/metrics_plot.png")
+
     print("=" * 60)
     print(f"[Summary] Best Val Dice = {best_val_dice:.4f} @ epoch {best_val_dice_epoch}")
     print(f"[Summary] Best Val IoU  = {best_val_iou:.4f}  @ epoch {best_val_iou_epoch}")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     main()

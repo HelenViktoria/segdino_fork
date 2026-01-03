@@ -54,7 +54,7 @@ def main():
 
     ### Output directories
     iso_time = datetime.now().isoformat()
-    save_root = f"../tests/segdino_{args.dino_size}_{args.dataset}_{args.ckpt}_{iso_time}"
+    save_root = f"../tests/segdino_{args.dino_size}_{args.dataset}_{args.ckpt}_{args.test_split}_{iso_time}"
     os.makedirs(save_root, exist_ok=True)
 
     vis_dir   = os.path.join(save_root, "test_vis")
@@ -93,6 +93,7 @@ def main():
         num_workers=args.num_workers,
         drop_last=False,
     )
+
 
     # Run evaluation
     run_test(

@@ -58,7 +58,7 @@ def main():
 
 
     ### Create directories for saving results and checkpoints
-    iso_time = datetime.now().isoformat()
+    iso_time = datetime.now().strftime('%Y-%m-%dT%H-%M-%S.%f')
     save_root = f"../trainings/segdino_{args.dino_size}_{args.dataset}_{iso_time}"
     os.makedirs(save_root, exist_ok=True)
     

@@ -18,7 +18,7 @@ python "$PYTHON_SCRIPT" \
     --input_h 256 \
     --input_w 256 \
     --batch_size 1 \
-    --num_workers 8 \
+    --num_workers 4 \
     --num_classes 1 \
     --ckpt ../trainings/segdino_s_dis5k_2026-01-03T15:43:45.939508/ckpts/best.pth \
     --repo_dir ../dinov3 \
@@ -35,7 +35,7 @@ python "$PYTHON_SCRIPT" \
     --input_h 256 \
     --input_w 256 \
     --batch_size 1 \
-    --num_workers 8 \
+    --num_workers 4 \
     --num_classes 1 \
     --ckpt ../trainings/segdino_s_dis5k_2026-01-03T15:43:45.939508/ckpts/best.pth \
     --repo_dir ../dinov3 \
@@ -52,7 +52,7 @@ python "$PYTHON_SCRIPT" \
     --input_h 256 \
     --input_w 256 \
     --batch_size 1 \
-    --num_workers 8 \
+    --num_workers 4 \
     --num_classes 1 \
     --ckpt ../trainings/segdino_s_dis5k_2026-01-03T15:43:45.939508/ckpts/best.pth \
     --repo_dir ../dinov3 \
@@ -69,7 +69,7 @@ python "$PYTHON_SCRIPT" \
     --input_h 256 \
     --input_w 256 \
     --batch_size 1 \
-    --num_workers 8 \
+    --num_workers 4 \
     --num_classes 1 \
     --ckpt ../trainings/segdino_s_dis5k_2026-01-03T15:43:45.939508/ckpts/best.pth \
     --repo_dir ../dinov3 \

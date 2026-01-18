@@ -24,7 +24,7 @@ python "$PYTHON_SCRIPT" \
     --input_w 256 \
     --lr 1e-4 \
     --weight_decay 1e-4 \
-    --num_workers 16 \
+    --num_workers 4 \
     --num_classes 1 \
     --in_ch 1 \
     --repo_dir ../dinov3 \

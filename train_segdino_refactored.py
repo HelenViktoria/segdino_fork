@@ -14,8 +14,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
-from spider_utils.dataset import FolderDataset
-from spider_utils.transforms import ResizeAndNormalize
+from spider_utils.dataset import FolderTupleDataset
+from spider_utils.transforms import make_constrained_random_crop_transform
 from spider_utils.train import train_one_epoch, validate, set_seed, plot_train_metrics
 from spider_utils.model_utils import load_ckpt, save_ckpt
 
@@ -97,23 +97,25 @@ def main():
 
     ### Prepare datasets and dataloaders
     root = os.path.join(args.data_dir, args.dataset)
-    train_transform = ResizeAndNormalize(size=(args.input_h, args.input_w))
-    val_transform   = ResizeAndNormalize(size=(args.input_h, args.input_w))
+    train_transform = make_constrained_random_crop_transform(size=(args.input_h, args.input_w))
+    val_transform   = make_constrained_random_crop_transform(size=(args.input_h, args.input_w))
 
-    train_dataset = FolderDataset(
+    train_dataset = FolderTupleDataset(
         root=root,
         split=args.train_split,
         img_dir_name=args.img_dir_name,
         label_dir_name=args.label_dir_name,
-        mask_ext=args.mask_ext if hasattr(args, "mask_ext") else None,
+        img_ext=args.img_ext,
+        mask_ext=args.mask_ext,
         transform=train_transform,
     )
-    val_dataset = FolderDataset(
+    val_dataset = FolderTupleDataset(
         root=root,
         split=args.val_split,
         img_dir_name=args.img_dir_name,
         label_dir_name=args.label_dir_name,
-        mask_ext=args.mask_ext if hasattr(args, "mask_ext") else None,
+        img_ext=args.img_ext,
+        mask_ext=args.mask_ext,
         transform=val_transform,
     )
 

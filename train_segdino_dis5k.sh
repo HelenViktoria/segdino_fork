@@ -17,7 +17,7 @@ python "$PYTHON_SCRIPT" \
     --mask_ext .png \
     --train_split DIS-TR \
     --val_split DIS-VD \
-    --epochs 50 \
+    --epochs 10 \
     --batch_size 8 \
     --seed 42 \
     --input_h 256 \

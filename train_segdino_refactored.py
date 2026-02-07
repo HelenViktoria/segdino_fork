@@ -15,7 +15,7 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from spider_utils.dataset import FolderTupleDataset
-from spider_utils.transforms import make_constrained_random_crop_transform
+from spider_utils.transforms import make_random_crop_transform
 from spider_utils.train import train_one_epoch, validate, set_seed, plot_train_metrics
 from spider_utils.model_utils import load_ckpt, save_ckpt
 
@@ -89,16 +89,16 @@ def main():
     ### Load segmentation checkpoint if provided
     if args.model_ckpt is not None:
         print(f"[Load segmentation ckpt] {args.model_ckpt}")
-        prev_val_dice, prev_val_iou = load_ckpt(model, optimizer, args.model_ckpt, map_location=device)
-        print(f"[Info] Resuming from val_dice={prev_val_dice:.4f}, val_iou={prev_val_iou:.4f}")
+        load_ckpt(model, args.model_ckpt, map_location=device)
+        print(f"[Info] Successfully loaded segmentation ckpt from {args.model_ckpt}")
     else:
         print("[Info] No segmentation ckpt provided, training from scratch.")
     
 
     ### Prepare datasets and dataloaders
     root = os.path.join(args.data_dir, args.dataset)
-    train_transform = make_constrained_random_crop_transform(size=(args.input_h, args.input_w))
-    val_transform   = make_constrained_random_crop_transform(size=(args.input_h, args.input_w))
+    train_transform = make_random_crop_transform(size=(args.input_h, args.input_w))
+    val_transform   = make_random_crop_transform(size=(args.input_h, args.input_w))
 
     train_dataset = FolderTupleDataset(
         root=root,
@@ -136,9 +136,9 @@ def main():
 
 
     ### Training and validation loop
-    best_val_dice = prev_val_dice if args.model_ckpt is not None else -1.0
+    best_val_dice = -1.0
     best_val_dice_epoch = -1
-    best_val_iou  = prev_val_iou if args.model_ckpt is not None else -1.0
+    best_val_iou  = -1.0
     best_val_iou_epoch  = -1
 
     dice_array = np.zeros(args.epochs)
@@ -172,14 +172,14 @@ def main():
         iou_array[epoch-1] = val_iou
 
         # Save latest checkpoint
-        save_ckpt(model, optimizer, epoch, val_dice, val_iou, latest_path)
+        save_ckpt(model, epoch, val_dice, val_iou, latest_path)
         print(f"[Save] Latest ckpt: {latest_path}")
 
         # Save best checkpoints based on validation Dice and IoU
         if val_dice > best_val_dice:
             best_val_dice = val_dice
             best_val_dice_epoch = epoch
-            save_ckpt(model, optimizer, epoch, val_dice, val_iou, best_path)
+            save_ckpt(model, epoch, val_dice, val_iou, best_path)
             print(f"[Save] New best ckpt: {best_path}")
 
         if val_iou > best_val_iou:
@@ -197,7 +197,7 @@ def main():
     
     iou_path = os.path.join(metric_save_dir, "iou_array.npy")
     np.save(iou_path, iou_array)
-    print(f"[Save] Saved iou  array -> {iou_path}")
+    print(f"[Save] Saved iou array -> {iou_path}")
 
     plot_train_metrics(dice_array, iou_array, metric_save_dir)
     print(f"[Save] Saved metrics plot -> {metric_save_dir}/metrics_plot.png")

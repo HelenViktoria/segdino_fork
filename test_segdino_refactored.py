@@ -16,7 +16,7 @@ sys.path.insert(0, parent_dir)
 
 from spider_utils.dataset import FolderTupleDataset
 from spider_utils.transforms import make_tile_normalize_transform
-from spider_utils.model_utils import load_ckpt
+from spider_utils.model_ckpt_utils import load_ckpt
 from spider_utils.test import run_test_with_tiling
 
 

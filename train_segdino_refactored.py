@@ -17,7 +17,7 @@ sys.path.insert(0, parent_dir)
 from spider_utils.dataset import FolderTupleDataset
 from spider_utils.transforms import make_random_crop_transform
 from spider_utils.train import train_one_epoch, validate, set_seed, plot_train_metrics
-from spider_utils.model_utils import load_ckpt, save_ckpt
+from spider_utils.model_ckpt_utils import load_ckpt, save_ckpt
 
 
 ### Main function that performs model training and validation

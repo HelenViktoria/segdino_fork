@@ -26,21 +26,19 @@ def main():
     parser.add_argument("--data_dir", type=str, default="./segdata")
     parser.add_argument("--dataset", type=str, default="tn3k")
     parser.add_argument("--img_ext", type=str, default=".png")
-    parser.add_argument("--mask_ext", type=str, default=".png")
+    parser.add_argument("--gt_ext", type=str, default=".png")
     parser.add_argument("--test_split", type=str, default="test")
     parser.add_argument("--input_h", type=int, default=1024)
     parser.add_argument("--input_w", type=int, default=1024)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--num_workers", type=int, default=8)
-    parser.add_argument("--num_classes", type=int, default=1)
-    parser.add_argument("--dice_thr", type=float, default=0.5)
 
     # Segmentation model checkpoint (DPT + decoder)
     parser.add_argument("--ckpt", type=str, required=True,
                         help="Path to the trained segmentation model checkpoint (.pth).")
 
     parser.add_argument("--img_dir_name", type=str, default="Original")
-    parser.add_argument("--label_dir_name", type=str, default="Ground truth")
+    parser.add_argument("--gt_dir_name", type=str, default="Ground truth")
 
     # DINO backbone configuration
     parser.add_argument("--dino_size", type=str, default="s", choices=["b", "s"],
@@ -66,7 +64,7 @@ def main():
 
     # Load DINO backbone depending on size
     backbone = load_dino_backbone(repo_dir=args.repo_dir, dino_size=args.dino_size, dino_ckpt=args.dino_ckpt)
-    model = DPT(nclass=args.num_classes, backbone=backbone)
+    model = DPT(nclass=1, backbone=backbone)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[Info] Using device: {device}")
@@ -84,10 +82,11 @@ def main():
         root=root,
         split=args.test_split,
         img_dir_name=args.img_dir_name,
-        label_dir_name=args.label_dir_name,
+        gt_dir_name=args.gt_dir_name,
         img_ext=args.img_ext,
-        mask_ext=args.mask_ext,
+        gt_ext=args.gt_ext,
         transform=test_transform,
+        return_meta=True
     )
 
     test_loader = DataLoader(

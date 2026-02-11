@@ -1,4 +1,4 @@
-import argparse
+from argparse import ArgumentParser
 import os
 import sys
 from datetime import datetime
@@ -16,7 +16,7 @@ sys.path.insert(0, parent_dir)
 
 from spider_utils.dataset import FolderTupleDataset
 from spider_utils.transforms import make_random_crop_transform
-from spider_utils.train import train_one_epoch, validate, set_seed, plot_train_metrics
+from spider_utils.train import train_one_epoch, validate, set_seed, save_train_metrics_plot
 from spider_utils.model_ckpt_utils import load_ckpt, save_ckpt
 
 
@@ -24,11 +24,11 @@ from spider_utils.model_ckpt_utils import load_ckpt, save_ckpt
 def main():
 
     ### Argument parsing
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument("--data_dir", type=str, default="./segdata")
     parser.add_argument("--dataset", type=str, default="tn3k")
     parser.add_argument("--img_ext", type=str, default=".png")
-    parser.add_argument("--mask_ext", type=str, default=".png")
+    parser.add_argument("--gt_ext", type=str, default=".png")
     parser.add_argument("--train_split", type=str, default="train")
     parser.add_argument("--val_split", type=str, default="val")
     parser.add_argument("--epochs", type=int, default=50)
@@ -39,8 +39,6 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--num_workers", type=int, default=16)
-    parser.add_argument("--num_classes", type=int, default=1)
-    parser.add_argument("--in_ch", type=int, default=1)
     parser.add_argument("--repo_dir", type=str, default="./dinov3")
     parser.add_argument("--dino_ckpt", type=str, required=True,help="Path to the pretrained DINO checkpoint (.pth). "
                          "Use ViT-B/16 checkpoint for --dino_size b, "
@@ -50,7 +48,7 @@ def main():
     parser.add_argument("--model_ckpt", type=str, default=None)
     parser.add_argument("--last_layer_idx", type=int, default=-1)
     parser.add_argument("--img_dir_name", type=str, default="image")
-    parser.add_argument("--label_dir_name", type=str, default="mask")
+    parser.add_argument("--gt_dir_name", type=str, default="mask")
     args = parser.parse_args()
 
     ### Set random seed for reproducibility
@@ -71,7 +69,7 @@ def main():
 
     ### Load DINO backbone and initialize DPT model
     backbone = load_dino_backbone(repo_dir=args.repo_dir, dino_size=args.dino_size, dino_ckpt=args.dino_ckpt)
-    model = DPT(nclass=args.num_classes, backbone=backbone)
+    model = DPT(nclass=1, backbone=backbone)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[Info] Using device: {device}")
@@ -83,7 +81,7 @@ def main():
         filter(lambda p: p.requires_grad, model.parameters()),
         lr=args.lr, weight_decay=args.weight_decay
     )
-    loss_fct = torch.nn.BCEWithLogitsLoss() if args.num_classes == 1 else torch.nn.CrossEntropyLoss()
+    loss_fct = torch.nn.BCEWithLogitsLoss()
 
 
     ### Load segmentation checkpoint if provided
@@ -104,19 +102,21 @@ def main():
         root=root,
         split=args.train_split,
         img_dir_name=args.img_dir_name,
-        label_dir_name=args.label_dir_name,
+        gt_dir_name=args.gt_dir_name,
         img_ext=args.img_ext,
-        mask_ext=args.mask_ext,
+        gt_ext=args.gt_ext,
         transform=train_transform,
+        return_meta=False
     )
     val_dataset = FolderTupleDataset(
         root=root,
         split=args.val_split,
         img_dir_name=args.img_dir_name,
-        label_dir_name=args.label_dir_name,
+        gt_dir_name=args.gt_dir_name,
         img_ext=args.img_ext,
-        mask_ext=args.mask_ext,
+        gt_ext=args.gt_ext,
         transform=val_transform,
+        return_meta=False
     )
 
     train_loader = torch.utils.data.DataLoader(
@@ -152,9 +152,7 @@ def main():
             optimizer,
             loss_fct,
             device,
-            num_classes=args.num_classes,
             is_logits=True,
-            dice_thr=0.5,
             epoch=epoch
         )
         _, val_dice, val_iou = validate(
@@ -162,9 +160,7 @@ def main():
             val_loader,
             loss_fct,
             device,
-            num_classes=args.num_classes,
-            is_logits=True,
-            dice_thr=0.5
+            is_logits=True
         )
 
         # Store metrics
@@ -199,7 +195,7 @@ def main():
     np.save(iou_path, iou_array)
     print(f"[Save] Saved iou array -> {iou_path}")
 
-    plot_train_metrics(dice_array, iou_array, metric_save_dir)
+    save_train_metrics_plot(dice_array, iou_array, metric_save_dir)
     print(f"[Save] Saved metrics plot -> {metric_save_dir}/metrics_plot.png")
 
     print("=" * 60)

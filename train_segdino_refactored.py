@@ -15,7 +15,7 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from spider_utils.dataset import FolderTupleDataset
-from spider_utils.transforms import make_random_crop_transform
+from spider_utils.transforms import make_random_crop_transform, make_resize_normalize_transform
 from spider_utils.train import train_one_epoch, validate, set_seed, save_train_metrics_plot
 from spider_utils.model_ckpt_utils import load_ckpt, save_ckpt
 
@@ -30,8 +30,9 @@ def main():
     parser.add_argument("--img_ext", type=str, default=".png")
     parser.add_argument("--gt_ext", type=str, default=".png")
     parser.add_argument("--train_split", type=str, default="train")
-    parser.add_argument("--val_split", type=str, default="val")
+    parser.add_argument("--val_split", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--transform", type=str, default="random_crop")
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--input_h", type=int, default=256)
@@ -95,8 +96,15 @@ def main():
 
     ### Prepare datasets and dataloaders
     root = os.path.join(args.data_dir, args.dataset)
-    train_transform = make_random_crop_transform(size=(args.input_h, args.input_w))
-    val_transform   = make_random_crop_transform(size=(args.input_h, args.input_w))
+    
+    if args.transform == "random_crop":
+        train_transform = make_random_crop_transform(size=(args.input_h, args.input_w))
+        val_transform   = make_random_crop_transform(size=(args.input_h, args.input_w))
+    elif args.transform == "resize":
+        train_transform = make_resize_normalize_transform(size=(args.input_h, args.input_w))
+        val_transform   = make_resize_normalize_transform(size=(args.input_h, args.input_w))
+    else:
+        raise ValueError(f"Unsupported transform: {args.transform}")
 
     train_dataset = FolderTupleDataset(
         root=root,
@@ -108,17 +116,6 @@ def main():
         transform=train_transform,
         return_meta=False
     )
-    val_dataset = FolderTupleDataset(
-        root=root,
-        split=args.val_split,
-        img_dir_name=args.img_dir_name,
-        gt_dir_name=args.gt_dir_name,
-        img_ext=args.img_ext,
-        gt_ext=args.gt_ext,
-        transform=val_transform,
-        return_meta=False
-    )
-
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
@@ -126,13 +123,25 @@ def main():
         num_workers=args.num_workers,
         drop_last=True
     )
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset,
-        batch_size=1,
-        shuffle=False,
-        num_workers=args.num_workers,
-        drop_last=False
-    )
+
+    if args.val_split is not None:
+        val_dataset = FolderTupleDataset(
+            root=root,
+            split=args.val_split,
+            img_dir_name=args.img_dir_name,
+            gt_dir_name=args.gt_dir_name,
+            img_ext=args.img_ext,
+            gt_ext=args.gt_ext,
+            transform=val_transform,
+            return_meta=False
+        )
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=args.num_workers,
+            drop_last=False
+        )
 
 
     ### Training and validation loop
@@ -155,53 +164,59 @@ def main():
             is_logits=True,
             epoch=epoch
         )
-        _, val_dice, val_iou = validate(
-            model,
-            val_loader,
-            loss_fct,
-            device,
-            is_logits=True
-        )
 
-        # Store metrics
-        dice_array[epoch-1] = val_dice
-        iou_array[epoch-1] = val_iou
+        if args.val_split is not None:
+            _, val_dice, val_iou = validate(
+                model,
+                val_loader,
+                loss_fct,
+                device,
+                is_logits=True
+            )
+
+            # Store metrics
+            dice_array[epoch-1] = val_dice
+            iou_array[epoch-1] = val_iou
 
         # Save latest checkpoint
-        save_ckpt(model, epoch, val_dice, val_iou, latest_path)
+        if args.val_split is not None:
+            save_ckpt(model, epoch, val_dice, val_iou, latest_path)
+        else:
+            save_ckpt(model, epoch, None, None, latest_path)
         print(f"[Save] Latest ckpt: {latest_path}")
 
-        # Save best checkpoints based on validation Dice and IoU
-        if val_dice > best_val_dice:
-            best_val_dice = val_dice
-            best_val_dice_epoch = epoch
-            save_ckpt(model, epoch, val_dice, val_iou, best_path)
-            print(f"[Save] New best ckpt: {best_path}")
+        if args.val_split is not None:
+            # Save best checkpoints based on validation Dice and IoU
+            if val_dice > best_val_dice:
+                best_val_dice = val_dice
+                best_val_dice_epoch = epoch
+                save_ckpt(model, epoch, val_dice, val_iou, best_path)
+                print(f"[Save] New best ckpt: {best_path}")
 
-        if val_iou > best_val_iou:
-            best_val_iou = val_iou
-            best_val_iou_epoch = epoch
+            if val_iou > best_val_iou:
+                best_val_iou = val_iou
+                best_val_iou_epoch = epoch
 
+    if args.val_split is not None:
+        ### Save + plot metric arrays
+        metric_save_dir = os.path.join(save_root, "metrics")
+        os.makedirs(metric_save_dir, exist_ok=True)
+        
+        dice_path = os.path.join(metric_save_dir, "dice_array.npy")
+        np.save(dice_path, dice_array)
+        print(f"[Save] Saved dice array -> {dice_path}")
+        
+        iou_path = os.path.join(metric_save_dir, "iou_array.npy")
+        np.save(iou_path, iou_array)
+        print(f"[Save] Saved iou array -> {iou_path}")
 
-    ### Save + plot metric arrays
-    metric_save_dir = os.path.join(save_root, "metrics")
-    os.makedirs(metric_save_dir, exist_ok=True)
-    
-    dice_path = os.path.join(metric_save_dir, "dice_array.npy")
-    np.save(dice_path, dice_array)
-    print(f"[Save] Saved dice array -> {dice_path}")
-    
-    iou_path = os.path.join(metric_save_dir, "iou_array.npy")
-    np.save(iou_path, iou_array)
-    print(f"[Save] Saved iou array -> {iou_path}")
+        save_train_metrics_plot(dice_array, iou_array, metric_save_dir)
+        print(f"[Save] Saved metrics plot -> {metric_save_dir}/metrics_plot.png")
 
-    save_train_metrics_plot(dice_array, iou_array, metric_save_dir)
-    print(f"[Save] Saved metrics plot -> {metric_save_dir}/metrics_plot.png")
-
-    print("=" * 60)
-    print(f"[Summary] Best Val Dice = {best_val_dice:.4f} @ epoch {best_val_dice_epoch}")
-    print(f"[Summary] Best Val IoU  = {best_val_iou:.4f}  @ epoch {best_val_iou_epoch}")
-    print("=" * 60)
+        print("=" * 60)
+        print(f"[Summary] Best Val Dice = {best_val_dice:.4f} @ epoch {best_val_dice_epoch}")
+        print(f"[Summary] Best Val IoU  = {best_val_iou:.4f}  @ epoch {best_val_iou_epoch}")
+        print("=" * 60)
 
 
 if __name__ == "__main__":
